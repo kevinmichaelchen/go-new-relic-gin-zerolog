@@ -1,4 +1,6 @@
-# go-new-relic-gin-zap
+# go-new-relic-gin-zerolog
+
+[![Lines Of Code](https://tokei.rs/b1/github/kevinmichaelchen/go-new-relic-gin-zerolog?category=code)](https://github.com/kevinmichaelchen/go-new-relic-gin-zerolog)
 
 This demo uses
 * [New Relic](https://newrelic.com/), an o11y platform
