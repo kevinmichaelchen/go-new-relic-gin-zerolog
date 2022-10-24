@@ -5,7 +5,7 @@
 This demo uses
 * [New Relic](https://newrelic.com/), an o11y platform
 * [gin](https://github.com/gin-gonic/gin), an HTTP web framework
-* [zerolog]([https://github.com/uber-go/zap](https://github.com/rs/zerolog)), a structured logger
+* [zerolog](https://github.com/rs/zerolog), a structured logger
 
 For this demo, I signed up for a free plan of New Relic.
 
