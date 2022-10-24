@@ -1,4 +1,4 @@
-package logging
+package loggingzap
 
 import (
 	"go.uber.org/fx"

@@ -7,11 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kevinmichaelchen/go-new-relic-gin-zap/pkg/logging"
 	"github.com/newrelic/go-agent/v3/integrations/logcontext"
+	"github.com/newrelic/go-agent/v3/integrations/logcontext-v2/zerologWriter"
 	"github.com/newrelic/go-agent/v3/integrations/nrgin"
 	"github.com/newrelic/go-agent/v3/newrelic"
+	"github.com/rs/zerolog"
 	"github.com/sethvargo/go-envconfig"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 	"net/http"
 )
 
@@ -41,8 +42,9 @@ func NewConfig() (*Config, error) {
 func NewGinEngine(
 	lc fx.Lifecycle,
 	cfg *Config,
-	logger *zap.Logger,
+	logger zerolog.Logger,
 	nrapp *newrelic.Application,
+	writer zerologWriter.ZerologWriter,
 ) *gin.Engine {
 
 	// Create Gin router
@@ -51,26 +53,32 @@ func NewGinEngine(
 	// Instrument requests with New Relic telemetry
 	r.Use(nrgin.Middleware(nrapp))
 
-	// Middleware to add the Trace ID to the logger
+	// Inject logger into context
 	r.Use(func(c *gin.Context) {
-		ctx := c.Request.Context()
+		// Get the New Relic Transaction from the Gin context
+		txn := nrgin.Transaction(c)
 
-		newRelicFields := getNrMetadataFields(ctx)
+		// Always create a new logger in order to avoid changing the context of
+		// the logger for other threads that may be logging external to this
+		// transaction.
+		// TODO how to add traceID to this logger?
+		newLogger := logger.Output(writer.WithTransaction(txn))
 
-		newLogger := logger.With(newRelicFields...)
+		md := txn.GetLinkingMetadata()
+		sublogger := newLogger.With().
+			Str(logcontext.KeyTraceID, md.TraceID).
+			Str(logcontext.KeySpanID, md.SpanID).
+			Str(logcontext.KeyEntityName, md.EntityName).
+			Str(logcontext.KeyEntityType, md.EntityType).
+			Str(logcontext.KeyEntityGUID, md.EntityGUID).
+			Str(logcontext.KeyHostname, md.Hostname).
+			Logger()
 
-		newLogger.Info("Before injecting logger and calling Next()")
+		//newCtx := sublogger.WithContext(c.Request.Context())
+		newCtx := logging.ToContext(c.Request.Context(), sublogger)
 
-		// Update context
-		newCtx := logging.ToContext(ctx, newLogger)
-
-		//c.Request = c.Request.Clone(newCtx)
 		c.Request = c.Request.WithContext(newCtx)
 
-		// TODO the zap.Logger here has TraceContext, but it's not
-		//  getting passed down correctly??
-
-		// Invoke next handler in chain
 		c.Next()
 	})
 
@@ -80,11 +88,9 @@ func NewGinEngine(
 			// In production, we'd want to separate the Listen and Serve phases for
 			// better error-handling.
 			go func() {
-				// TODO get proper logger
-				logger.Info("Serving HTTP", zap.String("addr", addr))
 				err := r.Run(addr)
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
-					logger.Fatal("server failed", zap.Error(err))
+					logger.Fatal().Err(err).Msg("server failed")
 				}
 			}()
 			return nil
@@ -104,25 +110,22 @@ func RegisterHandler(r *gin.Engine, nrapp *newrelic.Application) {
 		ctx := c.Request.Context()
 
 		logger := logging.Extract(ctx)
-		logger.Info("this is a zap log")
+		logger.Info().Msg("this is a log")
 		c.Writer.Write([]byte("ok"))
 	})
-}
 
-func getNrMetadataFields(ctx context.Context) []zap.Field {
-	// Extract the New Relic transaction from context
-	txn := newrelic.FromContext(ctx)
-	if txn == nil {
-		return []zap.Field{}
-	}
-	// The fields needed to link data to a trace
-	md := txn.GetLinkingMetadata()
-	return []zap.Field{
-		zap.String(logcontext.KeyTraceID, md.TraceID),
-		zap.String(logcontext.KeySpanID, md.SpanID),
-		zap.String(logcontext.KeyEntityName, md.EntityName),
-		zap.String(logcontext.KeyEntityType, md.EntityType),
-		zap.String(logcontext.KeyEntityGUID, md.EntityGUID),
-		zap.String(logcontext.KeyHostname, md.Hostname),
-	}
+	r.GET("/err", func(c *gin.Context) {
+		ctx := c.Request.Context()
+
+		logger := logging.Extract(ctx)
+
+		c.Status(http.StatusInternalServerError)
+		c.Writer.Write([]byte("mysterious error occurred"))
+
+		txn := newrelic.FromContext(ctx)
+		logger.
+			Err(errors.New("something internal failed")).
+			Bool("is_null", txn == nil).
+			Msg("oops")
+	})
 }

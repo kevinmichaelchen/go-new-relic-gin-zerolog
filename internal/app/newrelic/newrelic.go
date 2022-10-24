@@ -3,13 +3,11 @@ package newrelic
 import (
 	"context"
 	"errors"
-	"github.com/newrelic/go-agent/v3/integrations/nrzap"
+	"fmt"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/sethvargo/go-envconfig"
 	"go.uber.org/fx"
-	"go.uber.org/zap"
 	"os"
-	"strings"
 )
 
 var Module = fx.Module("newrelic",
@@ -41,6 +39,10 @@ type NestedConfig struct {
 	// Whether the New Relic agent forwards logs to New Relic.
 	// Only do this when logs are in the JSON format.
 	ForwardLogs bool `env:"FORWARD_LOGS,default=true"`
+
+	// Toggles whether the agent enriches local logs printed to console, so they
+	// can be sent to new relic for ingestion
+	DecorateLogs bool `env:"DECORATE_LOGS,default=true"`
 }
 
 func NewConfig() (*Config, error) {
@@ -52,36 +54,30 @@ func NewConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-func NewNewRelicApplication(cfg *Config, logger *zap.Logger) (*newrelic.Application, error) {
+func NewNewRelicApplication(cfg *Config) (*newrelic.Application, error) {
 	enabled := cfg.Enabled
 	if enabled && len(cfg.Key) == 0 {
 		return nil, errors.New("missing key for New Relic")
 	}
 
 	if !enabled {
-		logger.Warn("New Relic not enabled. Check Environment Variables for NEW_RELIC_ENABLED=true and NEW_RELIC_KEY=[valid-license-key]")
+		fmt.Println("[WARN] New Relic monitoring is not enabled.")
 	}
 
-	logger.Info("Attempting to initialize New Relic...")
-
-	opts := buildNewRelicConfigOptions(cfg, logger)
+	opts := buildNewRelicConfigOptions(cfg)
 
 	app, err := newrelic.NewApplication(opts...)
 
 	if err != nil {
-		logger.Error("Failed to create New Relic application.", zap.Error(err))
 		return app, err
 	}
-
-	logger.Info("New Relic initialized.")
 
 	return app, nil
 }
 
-func buildNewRelicConfigOptions(cfg *Config, logger *zap.Logger) []newrelic.ConfigOption {
+func buildNewRelicConfigOptions(cfg *Config) []newrelic.ConfigOption {
 	enabled := cfg.Enabled
 	env := cfg.Env
-	isLocal := strings.ToLower(env) == "local"
 	debugLoggerEnabled := enabled && cfg.DebugLogging
 
 	labels := map[string]string{
@@ -99,7 +95,7 @@ func buildNewRelicConfigOptions(cfg *Config, logger *zap.Logger) []newrelic.Conf
 		newrelic.ConfigLicense(cfg.Key),
 		newrelic.ConfigEnabled(enabled),
 		newrelic.ConfigDistributedTracerEnabled(true),
-		nrzap.ConfigLogger(logger.Named("newrelic")),
+		newrelic.ConfigInfoLogger(os.Stdout),
 		func(cfg *newrelic.Config) {
 			cfg.ErrorCollector.RecordPanics = true
 			cfg.CrossApplicationTracer.Enabled = false // this is legacy and is now  DistributedTracerEnabled
@@ -111,18 +107,15 @@ func buildNewRelicConfigOptions(cfg *Config, logger *zap.Logger) []newrelic.Conf
 
 	if cfg.ForwardLogs {
 		opts = append(opts, newrelic.ConfigAppLogForwardingEnabled(true))
-		logger.Info("New Relic - ConfigAppLogForwardingEnabled")
 	}
 
 	// if none local.. do log decoration of NR attributes
-	if !isLocal {
+	if cfg.DecorateLogs {
 		opts = append(opts, newrelic.ConfigAppLogDecoratingEnabled(true))
-		logger.Info("New Relic - ConfigAppLogDecoratingEnabled")
 	}
 
 	if debugLoggerEnabled {
 		opts = append(opts, newrelic.ConfigDebugLogger(os.Stdout))
-		logger.Info("New Relic - ConfigDebugLogger")
 	}
 
 	return opts
