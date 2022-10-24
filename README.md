@@ -7,6 +7,8 @@ This demo uses
 * [gin](https://github.com/gin-gonic/gin), an HTTP web framework
 * [zap](https://github.com/uber-go/zap), a structured logger
 
+For this demo, I signed up for a free plan of New Relic.
+
 ## Getting started
 ### Start server
 Start the server using your New Relic browser license key.
@@ -24,3 +26,5 @@ curl localhost:8081/health
 ```
 
 ### Check New Relic UI
+Visit [New Relic One](https://one.newrelic.com) and navigate to `APM & services`,
+and search for your _Trace group_.
