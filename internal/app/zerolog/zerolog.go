@@ -1,4 +1,4 @@
-package loggingzerolog
+package zerolog
 
 import (
 	"github.com/newrelic/go-agent/v3/integrations/logcontext-v2/zerologWriter"
