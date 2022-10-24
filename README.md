@@ -5,7 +5,7 @@
 This demo uses
 * [New Relic](https://newrelic.com/), an o11y platform
 * [gin](https://github.com/gin-gonic/gin), an HTTP web framework
-* [zap](https://github.com/uber-go/zap), a structured logger
+* [zerolog]([https://github.com/uber-go/zap](https://github.com/rs/zerolog)), a structured logger
 
 For this demo, I signed up for a free plan of New Relic.
 
@@ -27,4 +27,5 @@ curl localhost:8081/health
 
 ### Check New Relic UI
 Visit [New Relic One](https://one.newrelic.com) and navigate to `APM & services`,
-and search for your _Trace group_.
+and search for your _Trace group_. When you drill down into a trace, you should
+be able to see all the logs belonging to that trace. This is known as _logs in context_.
