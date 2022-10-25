@@ -61,7 +61,6 @@ func NewGinEngine(
 		// Always create a new logger in order to avoid changing the context of
 		// the logger for other threads that may be logging external to this
 		// transaction.
-		// TODO how to add traceID to this logger?
 		newLogger := logger.Output(writer.WithTransaction(txn))
 
 		md := txn.GetLinkingMetadata()
