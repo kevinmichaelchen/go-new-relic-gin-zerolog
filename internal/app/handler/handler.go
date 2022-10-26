@@ -108,7 +108,10 @@ func RegisterHandler(r *gin.Engine, nrapp *newrelic.Application) {
 		ctx := c.Request.Context()
 
 		logger := logging.Extract(ctx)
-		logger.Info().Bool("txn_null", newrelic.FromContext(ctx) == nil).Msg("this is a log")
+		logger.Info().
+			Bool("context.gin.txn_null", newrelic.FromContext(c) == nil).
+			Bool("context.http.txn_null", newrelic.FromContext(ctx) == nil).
+			Msg("this is a log")
 		c.Writer.Write([]byte("ok"))
 	})
 
