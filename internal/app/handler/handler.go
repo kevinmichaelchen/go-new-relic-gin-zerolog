@@ -73,8 +73,7 @@ func NewGinEngine(
 			Str(logcontext.KeyHostname, md.Hostname).
 			Logger()
 
-		//newCtx := sublogger.WithContext(c.Request.Context())
-		newCtx := logging.ToContext(c.Request.Context(), sublogger)
+		newCtx := logging.ToContext(c, sublogger)
 
 		c.Request = c.Request.WithContext(newCtx)
 
@@ -109,7 +108,7 @@ func RegisterHandler(r *gin.Engine, nrapp *newrelic.Application) {
 		ctx := c.Request.Context()
 
 		logger := logging.Extract(ctx)
-		logger.Info().Msg("this is a log")
+		logger.Info().Bool("txn_null", newrelic.FromContext(ctx) == nil).Msg("this is a log")
 		c.Writer.Write([]byte("ok"))
 	})
 
